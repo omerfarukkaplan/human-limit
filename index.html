@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>HUMAN LIMIT - STREAK MODE</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+
+<style>
+body{
+  margin:0;
+  background:#000;
+  font-family:'Orbitron',sans-serif;
+  color:white;
+  text-align:center;
+}
+
+.header{
+  margin-top:20px;
+  letter-spacing:6px;
+  opacity:0.6;
+}
+
+#mainText{
+  font-size:60px;
+  margin-top:60px;
+  cursor:pointer;
+}
+
+#dailyStatus{
+  margin-top:20px;
+  font-size:18px;
+}
+
+#streakBox{
+  margin-top:15px;
+  font-size:16px;
+  color:#00ff99;
+}
+</style>
+</head>
+<body>
+
+<div class="header">HUMAN LIMIT - SURVIVOR MODE</div>
+
+<div id="mainText">TAP TO BEGIN</div>
+<div id="dailyStatus"></div>
+<div id="streakBox"></div>
+
+<script>
+
+const SUPABASE_URL="https://lyyejixcijtidovuteff.supabase.co";
+const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5eWVqaXhjaWp0aWRvdnV0ZWZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNDI5OTAsImV4cCI6MjA4NjcxODk5MH0.U1YcPK7FGTnv-1eaDo5eqvw0wq4cnG_69y0KqQJURjQ";
+
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let status="idle";
+let startTime;
+let timeoutId;
+
+const mainText=document.getElementById("mainText");
+const dailyStatus=document.getElementById("dailyStatus");
+const streakBox=document.getElementById("streakBox");
+
+/* CLIENT HASH */
+let clientHash=localStorage.getItem("humanLimitClient");
+if(!clientHash){
+  clientHash=crypto.randomUUID();
+  localStorage.setItem("humanLimitClient",clientHash);
+}
+
+function startGame(){
+  status="waiting";
+  dailyStatus.innerHTML="";
+  mainText.innerHTML="...";
+  let delay=Math.random()*2000+800;
+
+  timeoutId=setTimeout(()=>{
+    status="ready";
+    startTime=Date.now();
+    mainText.innerHTML="TAP";
+  },delay);
+}
+
+async function calculateDailyPercent(reaction){
+
+  const {count:totalCount}=await supabaseClient
+    .from("daily_scores")
+    .select("*",{count:"exact",head:true});
+
+  const {count:slowerCount}=await supabaseClient
+    .from("daily_scores")
+    .select("*",{count:"exact",head:true})
+    .gt("reaction",reaction);
+
+  let percent=Math.floor((slowerCount/totalCount)*100);
+  return percent;
+}
+
+async function getStreak(){
+  const {data}=await supabaseClient
+    .from("daily_streaks")
+    .select("*")
+    .eq("client_hash",clientHash)
+    .limit(1);
+
+  if(data && data.length>0){
+    return data[0].streak_count;
+  }
+  return 0;
+}
+
+mainText.onclick=async function(){
+
+  if(status==="idle"||status==="result"){
+    startGame();
+  }
+
+  else if(status==="waiting"){
+    clearTimeout(timeoutId);
+    status="result";
+    mainText.innerHTML="Too Early";
+  }
+
+  else if(status==="ready"){
+    let reaction=Date.now()-startTime;
+    status="result";
+    mainText.innerHTML=reaction+" ms";
+
+    await supabaseClient.from("scores").insert([
+      {
+        nickname:"Anonymous",
+        reaction:reaction,
+        season_id:1,
+        client_hash:clientHash
+      }
+    ]);
+
+    let percent=await calculateDailyPercent(reaction);
+
+    let survived = percent >= 70;
+
+    await supabaseClient.rpc("update_streak",{
+      p_client:clientHash,
+      survived:survived
+    });
+
+    if(survived){
+      dailyStatus.innerHTML="🟢 You survived today!";
+    }else{
+      dailyStatus.innerHTML="🔴 Eliminated today!";
+    }
+
+    let streak=await getStreak();
+
+    streakBox.innerHTML="🔥 Survivor Streak: "+streak+" days";
+
+    if(streak>=7){
+      streakBox.innerHTML+=" - WEEK ELITE";
+    }
+    if(streak>=30){
+      streakBox.innerHTML+=" - LEGEND";
+    }
+  }
+}
+
+</script>
+</body>
+</html>
