@@ -1,231 +1,258 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>HUMAN LIMIT — Survivor Mode</title>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-*{
-margin:0;
-padding:0;
-box-sizing:border-box;
-font-family: 'Segoe UI', sans-serif;
-}
-
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI,sans-serif;}
 body{
-background: radial-gradient(circle at top,#111827,#050508);
-color:white;
+background:radial-gradient(circle at top,#111,#050508);
+color:#fff;
 display:flex;
 flex-direction:column;
 align-items:center;
 min-height:100vh;
 }
 
-h1{
-margin-top:60px;
-font-weight:600;
-letter-spacing:4px;
-opacity:0.8;
-}
+h1{margin-top:50px;letter-spacing:4px;opacity:.8;}
 
-.main-card{
-margin-top:40px;
-background:rgba(255,255,255,0.05);
+.card{
+margin-top:30px;
+background:rgba(255,255,255,.05);
 backdrop-filter:blur(20px);
-border:1px solid rgba(255,255,255,0.1);
+border:1px solid rgba(255,255,255,.1);
 border-radius:20px;
 padding:40px;
-width:400px;
+width:420px;
 text-align:center;
-box-shadow:0 0 40px rgba(0,255,150,0.1);
 }
 
 .ms{
-font-size:72px;
-margin:30px 0;
+font-size:70px;
+margin:25px 0;
 font-weight:700;
 color:#00ffae;
-text-shadow:0 0 20px rgba(0,255,150,0.5);
+text-shadow:0 0 20px rgba(0,255,150,.6);
 }
 
 button{
-padding:14px 28px;
+padding:12px 26px;
 border:none;
 border-radius:10px;
 background:linear-gradient(90deg,#00ffae,#00ccff);
 color:#000;
 font-weight:600;
 cursor:pointer;
-transition:0.3s;
+margin-top:10px;
 }
 
-button:hover{
-transform:scale(1.05);
-box-shadow:0 0 20px rgba(0,255,200,0.5);
-}
+.info{font-size:14px;margin-top:10px;opacity:.8;}
+.attempts{color:#ffcc00;margin-top:5px;}
 
-.status{
-margin-top:15px;
-font-size:14px;
-opacity:0.8;
-}
-
-.board{
-margin-top:50px;
-width:400px;
-}
-
-.board h3{
-margin-bottom:15px;
-opacity:0.7;
-}
-
+.board{margin-top:40px;width:420px;}
 .player{
 padding:10px;
-background:rgba(255,255,255,0.05);
-margin-bottom:8px;
-border-radius:10px;
+background:rgba(255,255,255,.05);
+margin-bottom:6px;
+border-radius:8px;
 display:flex;
 justify-content:space-between;
 }
 
-.footer{
-margin-top:auto;
-margin-bottom:30px;
-opacity:0.4;
-font-size:12px;
+.counter{
+margin-top:20px;
+font-size:14px;
+color:#ff4d4d;
 }
+
+canvas{
+margin-top:40px;
+background:rgba(255,255,255,.03);
+border-radius:15px;
+padding:20px;
+}
+
+.championBanner{
+position:fixed;
+top:0;
+left:0;
+right:0;
+background:linear-gradient(90deg,gold,orange);
+color:#000;
+padding:15px;
+text-align:center;
+font-weight:700;
+display:none;
+z-index:1000;
+}
+
+.storyScreen{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:#000;
+display:none;
+align-items:center;
+justify-content:center;
+flex-direction:column;
+}
+
+.storyCard{
+width:360px;
+height:640px;
+background:linear-gradient(180deg,#000,#111);
+display:flex;
+flex-direction:column;
+align-items:center;
+justify-content:center;
+border-radius:20px;
+}
+
+.storyScore{
+font-size:60px;
+color:#00ffae;
+}
+
+.footer{margin-top:auto;margin-bottom:30px;opacity:.4;font-size:12px;}
 </style>
 </head>
 
 <body>
 
+<div class="championBanner" id="championBanner"></div>
+
 <h1>HUMAN LIMIT</h1>
 
-<div class="main-card">
-<div id="status" class="status">Ready</div>
-<div class="ms" id="reaction">TAP TO BEGIN</div>
-<button onclick="startGame()">START</button>
+<div class="card">
+<div class="info" id="status">You have 3 attempts today.</div>
+<div class="attempts" id="attempts"></div>
+<div class="ms" id="reaction">READY</div>
+<button id="actionBtn">START GAME</button>
+<button id="shareBtn" style="display:none;">SHARE RESULT</button>
+<div class="counter" id="liveCount"></div>
 </div>
 
 <div class="board">
-<h3>🔥 Global Survivors</h3>
+<h3>🔥 Global Survivors (Live)</h3>
 <div id="leaderboard"></div>
 </div>
 
-<div class="footer">
-Only the fastest survive.
+<canvas id="heatmap" width="400" height="150"></canvas>
+
+<div class="storyScreen" id="storyScreen">
+<div class="storyCard">
+<h2>HUMAN LIMIT</h2>
+<div class="storyScore" id="storyScore"></div>
+<p>Can you beat me?</p>
+<button onclick="closeStory()">Close</button>
 </div>
+</div>
+
+<div class="footer">Only the fastest survive.</div>
+
+<audio id="eliminateSound">
+<source src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3">
+</audio>
 
 <script>
 (function(){
 
-// =====================
-// CONFIG
-// =====================
+const SUPABASE_URL="https://lyyejixcijtidovuteff.supabase.co";
+const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5eWVqaXhjaWp0aWRvdnV0ZWZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNDI5OTAsImV4cCI6MjA4NjcxODk5MH0.U1YcPK7FGTnv-1eaDo5eqvw0wq4cnG_69y0KqQJURjQ";
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
-const SUPABASE_URL = "https://lyyejixcijtidovuteff.supabase.co";
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5eWVqaXhjaWp0aWRvdnV0ZWZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNDI5OTAsImV4cCI6MjA4NjcxODk5MH0.U1YcPK7FGTnv-1eaDo5eqvw0wq4cnG_69y0KqQJURjQ";
-
-const sbClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-let startTime = 0;
-let playedToday = false;
-let seasonId = null;
-let nickname = localStorage.getItem("nickname");
-
-// =====================
-// INIT
-// =====================
+let attemptsLeft=3;
+let seasonId=null;
+let nickname=localStorage.getItem("nickname")||prompt("Nickname:");
+localStorage.setItem("nickname",nickname);
 
 async function init(){
-
-if(!nickname){
-nickname = prompt("Nickname:");
-localStorage.setItem("nickname",nickname);
-}
-
 await loadSeason();
-await checkDaily();
-await loadBoard();
+await checkChampion();
+await checkDailyLimit();
+updateAttemptsUI();
+loadBoard();
+loadLiveCount();
+subscribeRealtime();
+drawHeatmap();
 }
 
 async function loadSeason(){
-const {data} = await sbClient
-.from("seasons")
-.select("*")
-.eq("is_active",true)
-.limit(1)
-.single();
-
-if(data) seasonId = data.id;
+const {data}=await sb.from("seasons").select("*").eq("is_active",true).single();
+if(data)seasonId=data.id;
 }
 
-async function checkDaily(){
-const today = new Date().toISOString().split("T")[0];
+async function checkChampion(){
+const {data}=await sb.from("season_champions")
+.select("*")
+.eq("season_id",seasonId)
+.order("reaction",{ascending:true})
+.limit(1);
 
-const {data} = await sbClient
-.from("daily_scores")
+if(data && data.length){
+const banner=document.getElementById("championBanner");
+banner.innerText="🏆 Season Champion: "+data[0].nickname+" — "+data[0].reaction+" ms";
+banner.style.display="block";
+}
+}
+
+async function checkDailyLimit(){
+const today=new Date().toISOString().split("T")[0];
+const {data}=await sb.from("daily_scores")
 .select("*")
 .eq("nickname",nickname)
 .eq("season_id",seasonId)
 .gte("created_at",today);
 
-if(data && data.length > 0){
-playedToday = true;
-document.getElementById("status").innerText="Eliminated today.";
+attemptsLeft=3-(data?data.length:0);
+if(attemptsLeft<=0){
+document.getElementById("status").innerText="No attempts left today.";
 }
 }
 
-window.startGame = function(){
-
-if(playedToday){
-alert("Bugün oynadın.");
-return;
+function updateAttemptsUI(){
+document.getElementById("attempts").innerText="Attempts left: "+attemptsLeft+"/3";
 }
+
+document.getElementById("actionBtn").addEventListener("click",startGame);
+
+let startTime=0;
+function startGame(){
+if(attemptsLeft<=0)return alert("Come back tomorrow.");
 
 document.getElementById("reaction").innerText="WAIT...";
-startTime = Date.now();
+startTime=Date.now();
 
 setTimeout(()=>{
-document.body.onclick = registerClick;
+document.body.onclick=registerClick;
 },Math.random()*2000+1000);
 }
 
 async function registerClick(){
-
 document.body.onclick=null;
+const reaction=Date.now()-startTime;
 
-const reaction = Date.now()-startTime;
+document.getElementById("reaction").innerText=reaction+" ms";
+document.getElementById("shareBtn").style.display="inline-block";
+document.getElementById("storyScore").innerText=reaction+" ms";
+document.getElementById("eliminateSound").play();
 
-document.getElementById("reaction").innerText = reaction+" ms";
-document.getElementById("status").innerText="Eliminated.";
+await sb.from("scores").insert({nickname,reaction,season_id:seasonId});
+await sb.from("daily_scores").insert({nickname,reaction,season_id:seasonId});
 
-await sbClient.from("scores").insert({
-nickname:nickname,
-reaction:reaction,
-season_id:seasonId,
-client_hash:btoa(navigator.userAgent+Date.now())
-});
-
-await sbClient.from("daily_scores").insert({
-nickname:nickname,
-reaction:reaction,
-season_id:seasonId,
-client_hash:btoa(navigator.userAgent+Date.now())
-});
-
-playedToday=true;
+attemptsLeft--;
+updateAttemptsUI();
+loadLiveCount();
 loadBoard();
 }
 
 async function loadBoard(){
-
-const {data} = await sbClient
-.from("scores")
+const {data}=await sb.from("scores")
 .select("*")
 .eq("season_id",seasonId)
 .order("reaction",{ascending:true})
@@ -233,8 +260,7 @@ const {data} = await sbClient
 
 const board=document.getElementById("leaderboard");
 board.innerHTML="";
-
-if(!data) return;
+if(!data)return;
 
 data.forEach((row,i)=>{
 const div=document.createElement("div");
@@ -242,6 +268,45 @@ div.className="player";
 div.innerHTML="<span>"+(i+1)+". "+row.nickname+"</span><span>"+row.reaction+" ms</span>";
 board.appendChild(div);
 });
+}
+
+async function loadLiveCount(){
+const today=new Date().toISOString().split("T")[0];
+const {data}=await sb.from("daily_scores")
+.select("*")
+.gte("created_at",today);
+
+document.getElementById("liveCount").innerText=
+"🩸 Eliminated Today: "+(data?data.length:0);
+}
+
+function subscribeRealtime(){
+sb.channel('live')
+.on('postgres_changes',{event:'INSERT',schema:'public',table:'scores'},
+payload=>{
+loadBoard();
+loadLiveCount();
+drawHeatmap();
+})
+.subscribe();
+}
+
+function drawHeatmap(){
+const ctx=document.getElementById("heatmap").getContext("2d");
+ctx.clearRect(0,0,400,150);
+for(let i=0;i<20;i++){
+const val=Math.random()*150;
+ctx.fillStyle="rgba(0,255,150,"+(Math.random())+")";
+ctx.fillRect(i*20,150-val,15,val);
+}
+}
+
+document.getElementById("shareBtn").onclick=function(){
+document.getElementById("storyScreen").style.display="flex";
+}
+
+window.closeStory=function(){
+document.getElementById("storyScreen").style.display="none";
 }
 
 init();
