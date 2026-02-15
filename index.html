@@ -1,170 +1,250 @@
 <!DOCTYPE html>
-<html>
+<html lang="tr">
 <head>
-<meta charset="UTF-8">
-<title>HUMAN LIMIT - STREAK MODE</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>HUMAN LIMIT - Survivor Mode</title>
 
-<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{
-  margin:0;
-  background:#000;
-  font-family:'Orbitron',sans-serif;
-  color:white;
-  text-align:center;
+body {
+    margin:0;
+    background:#0f0f14;
+    color:white;
+    font-family:Arial, sans-serif;
+    text-align:center;
 }
 
-.header{
-  margin-top:20px;
-  letter-spacing:6px;
-  opacity:0.6;
+.container {
+    margin-top:80px;
 }
 
-#mainText{
-  font-size:60px;
-  margin-top:60px;
-  cursor:pointer;
+.ms {
+    font-size:80px;
+    font-weight:bold;
+    margin:20px 0;
 }
 
-#dailyStatus{
-  margin-top:20px;
-  font-size:18px;
+.button {
+    padding:15px 30px;
+    background:#00ff99;
+    border:none;
+    border-radius:8px;
+    cursor:pointer;
+    font-size:18px;
+    margin-top:20px;
 }
 
-#streakBox{
-  margin-top:15px;
-  font-size:16px;
-  color:#00ff99;
+.leaderboard {
+    margin-top:50px;
+    max-width:400px;
+    margin-left:auto;
+    margin-right:auto;
+    text-align:left;
 }
+
+.card {
+    padding:10px;
+    border-bottom:1px solid #222;
+}
+
+.red { color:#ff4d4d; }
+.green { color:#00ff99; }
 </style>
 </head>
+
 <body>
 
-<div class="header">HUMAN LIMIT - SURVIVOR MODE</div>
+<div class="container">
+    <h1>HUMAN LIMIT - Survivor Mode</h1>
 
-<div id="mainText">TAP TO BEGIN</div>
-<div id="dailyStatus"></div>
-<div id="streakBox"></div>
+    <div id="status"></div>
+    <div class="ms" id="result">TAP TO BEGIN</div>
+    <button class="button" onclick="startGame()">START</button>
+
+    <div class="leaderboard">
+        <h3>🔥 Top Survivors</h3>
+        <div id="board"></div>
+    </div>
+</div>
 
 <script>
 
-const SUPABASE_URL="https://lyyejixcijtidovuteff.supabase.co";
-const SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5eWVqaXhjaWp0aWRvdnV0ZWZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNDI5OTAsImV4cCI6MjA4NjcxODk5MH0.U1YcPK7FGTnv-1eaDo5eqvw0wq4cnG_69y0KqQJURjQ";
+// =============================
+// SUPABASE CONFIG
+// =============================
 
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const SUPABASE_URL = "https://YOUR_PROJECT_ID.supabase.co";
+const SUPABASE_KEY = "YOUR_PUBLIC_ANON_KEY";
 
-let status="idle";
+const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// =============================
+// GLOBALS
+// =============================
+
 let startTime;
-let timeoutId;
+let hasPlayedToday = false;
+let activeSeasonId = null;
+let nickname = null;
 
-const mainText=document.getElementById("mainText");
-const dailyStatus=document.getElementById("dailyStatus");
-const streakBox=document.getElementById("streakBox");
+// =============================
+// INIT
+// =============================
 
-/* CLIENT HASH */
-let clientHash=localStorage.getItem("humanLimitClient");
-if(!clientHash){
-  clientHash=crypto.randomUUID();
-  localStorage.setItem("humanLimitClient",clientHash);
+init();
+
+async function init() {
+
+    nickname = localStorage.getItem("nickname");
+
+    if(!nickname){
+        nickname = prompt("Nickname gir:");
+        localStorage.setItem("nickname", nickname);
+    }
+
+    await loadActiveSeason();
+    await checkDailyPlay();
+    await loadLeaderboard();
 }
+
+// =============================
+// LOAD ACTIVE SEASON
+// =============================
+
+async function loadActiveSeason() {
+
+    const { data } = await supabase
+        .from("seasons")
+        .select("*")
+        .eq("is_active", true)
+        .limit(1)
+        .single();
+
+    if(data){
+        activeSeasonId = data.id;
+    }
+}
+
+// =============================
+// CHECK DAILY PLAY
+// =============================
+
+async function checkDailyPlay(){
+
+    const today = new Date().toISOString().split("T")[0];
+
+    const { data } = await supabase
+        .from("daily_scores")
+        .select("*")
+        .eq("nickname", nickname)
+        .eq("season_id", activeSeasonId)
+        .gte("created_at", today);
+
+    if(data.length > 0){
+        hasPlayedToday = true;
+        document.getElementById("status").innerHTML =
+            "<div class='red'>Eliminated today!</div>";
+    }
+}
+
+// =============================
+// GAME LOGIC
+// =============================
 
 function startGame(){
-  status="waiting";
-  dailyStatus.innerHTML="";
-  mainText.innerHTML="...";
-  let delay=Math.random()*2000+800;
 
-  timeoutId=setTimeout(()=>{
-    status="ready";
-    startTime=Date.now();
-    mainText.innerHTML="TAP";
-  },delay);
+    if(hasPlayedToday){
+        alert("Bugün oynadın. Yarın tekrar dene.");
+        return;
+    }
+
+    document.getElementById("result").innerHTML = "WAIT...";
+    startTime = Date.now();
+
+    setTimeout(() => {
+        document.body.onclick = registerClick;
+    }, Math.random()*2000 + 1000);
 }
 
-async function calculateDailyPercent(reaction){
+async function registerClick(){
 
-  const {count:totalCount}=await supabaseClient
-    .from("daily_scores")
-    .select("*",{count:"exact",head:true});
+    const reaction = Date.now() - startTime;
+    document.body.onclick = null;
 
-  const {count:slowerCount}=await supabaseClient
-    .from("daily_scores")
-    .select("*",{count:"exact",head:true})
-    .gt("reaction",reaction);
+    document.getElementById("result").innerHTML = reaction + " ms";
 
-  let percent=Math.floor((slowerCount/totalCount)*100);
-  return percent;
+    await saveScore(reaction);
+
+    hasPlayedToday = true;
+    document.getElementById("status").innerHTML =
+        "<div class='red'>Eliminated today!</div>";
+
+    await loadLeaderboard();
 }
 
-async function getStreak(){
-  const {data}=await supabaseClient
-    .from("daily_streaks")
-    .select("*")
-    .eq("client_hash",clientHash)
-    .limit(1);
+// =============================
+// SAVE SCORE
+// =============================
 
-  if(data && data.length>0){
-    return data[0].streak_count;
-  }
-  return 0;
-}
+async function saveScore(reaction){
 
-mainText.onclick=async function(){
-
-  if(status==="idle"||status==="result"){
-    startGame();
-  }
-
-  else if(status==="waiting"){
-    clearTimeout(timeoutId);
-    status="result";
-    mainText.innerHTML="Too Early";
-  }
-
-  else if(status==="ready"){
-    let reaction=Date.now()-startTime;
-    status="result";
-    mainText.innerHTML=reaction+" ms";
-
-    await supabaseClient.from("scores").insert([
-      {
-        nickname:"Anonymous",
-        reaction:reaction,
-        season_id:1,
-        client_hash:clientHash
-      }
-    ]);
-
-    let percent=await calculateDailyPercent(reaction);
-
-    let survived = percent >= 70;
-
-    await supabaseClient.rpc("update_streak",{
-      p_client:clientHash,
-      survived:survived
+    await supabase.from("scores").insert({
+        nickname: nickname,
+        reaction: reaction,
+        season_id: activeSeasonId,
+        client_hash: generateHash()
     });
 
-    if(survived){
-      dailyStatus.innerHTML="🟢 You survived today!";
-    }else{
-      dailyStatus.innerHTML="🔴 Eliminated today!";
-    }
+    await supabase.from("daily_scores").insert({
+        nickname: nickname,
+        reaction: reaction,
+        season_id: activeSeasonId,
+        client_hash: generateHash()
+    });
+}
 
-    let streak=await getStreak();
+// =============================
+// LOAD LEADERBOARD
+// =============================
 
-    streakBox.innerHTML="🔥 Survivor Streak: "+streak+" days";
+async function loadLeaderboard(){
 
-    if(streak>=7){
-      streakBox.innerHTML+=" - WEEK ELITE";
-    }
-    if(streak>=30){
-      streakBox.innerHTML+=" - LEGEND";
-    }
-  }
+    const { data } = await supabase
+        .from("scores")
+        .select("*")
+        .eq("season_id", activeSeasonId)
+        .order("reaction", { ascending: true })
+        .limit(10);
+
+    const board = document.getElementById("board");
+    board.innerHTML = "";
+
+    data.forEach((row, index) => {
+
+        const div = document.createElement("div");
+        div.className = "card";
+
+        div.innerHTML =
+            (index+1) + ". " +
+            row.nickname +
+            " - " +
+            row.reaction + " ms";
+
+        board.appendChild(div);
+    });
+}
+
+// =============================
+// HASH
+// =============================
+
+function generateHash(){
+    return btoa(navigator.userAgent + Date.now());
 }
 
 </script>
+
 </body>
 </html>
