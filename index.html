@@ -1,74 +1,89 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8">
 <title>HUMAN LIMIT</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <style>
 body{
   margin:0;
   font-family: 'Segoe UI', sans-serif;
-  background: radial-gradient(circle at top,#111,#000);
+  background: radial-gradient(circle at 30% 20%, #111, #000);
   color:white;
   text-align:center;
 }
+
 h1{
   letter-spacing:8px;
-  margin-top:40px;
   font-weight:300;
+  margin-top:40px;
 }
+
 .card{
+  width:420px;
   margin:40px auto;
   padding:40px;
-  width:400px;
-  background:rgba(255,255,255,0.05);
   border-radius:20px;
+  background:rgba(255,255,255,0.05);
   backdrop-filter:blur(20px);
-  box-shadow:0 0 40px rgba(0,255,150,0.2);
+  box-shadow:0 0 40px rgba(0,255,150,0.15);
 }
+
 .big{
-  font-size:60px;
+  font-size:70px;
   color:#00ff99;
   margin:20px 0;
+  transition:0.3s;
 }
+
 button{
   padding:14px 28px;
-  margin:10px;
   border:none;
   border-radius:12px;
   font-weight:bold;
-  background:#00ff99;
+  margin:10px;
+  background:linear-gradient(90deg,#00ff99,#00cc88);
   cursor:pointer;
 }
+
 button:disabled{
   background:#444;
   cursor:not-allowed;
 }
-#leaderboard{
-  width:400px;
-  margin:40px auto;
-  text-align:left;
+
+.banner{
+  margin-top:15px;
+  padding:12px;
+  background:linear-gradient(90deg,gold,orange);
+  border-radius:10px;
+  display:none;
 }
+
+.section{
+  width:600px;
+  margin:40px auto;
+}
+
 .lb-item{
   display:flex;
   justify-content:space-between;
-  padding:8px 0;
+  padding:8px;
   border-bottom:1px solid rgba(255,255,255,0.05);
 }
-.banner{
-  background:linear-gradient(90deg,gold,orange);
-  padding:12px;
-  border-radius:12px;
-  margin-top:20px;
-  font-weight:bold;
-  display:none;
-}
+
 .counter{
-  color:#ff4d4d;
   margin-top:10px;
+  color:#ff5555;
+}
+canvas{
+  margin-top:20px;
 }
 </style>
 </head>
+
 <body>
 
 <h1>HUMAN LIMIT</h1>
@@ -77,25 +92,32 @@ button:disabled{
   <div id="attemptInfo"></div>
   <div class="big" id="screenText">READY</div>
   <button id="actionBtn">START GAME</button>
-  <button id="shareBtn" style="display:none;">SHARE RESULT</button>
+  <button id="shareBtn" style="display:none;">SHARE</button>
   <div class="counter" id="eliminatedCounter"></div>
   <div class="banner" id="championBanner"></div>
 </div>
 
-<div id="leaderboard">
+<div class="section">
   <h3>🔥 Global Survivors (Live)</h3>
-  <div id="lbList"></div>
+  <div id="leaderboard"></div>
 </div>
 
-<audio id="eliminateSound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.wav"></audio>
+<div class="section">
+  <h3>⚡ Reaction Heatmap</h3>
+  <canvas id="reactionChart"></canvas>
+</div>
+
+<audio id="sound" src="https://assets.mixkit.co/sfx/preview/mixkit-arcade-retro-game-over-213.wav"></audio>
 
 <script>
 
-const supabase = window.supabase.createClient(
+// ===== SUPABASE INIT (ONLY ONCE) =====
+const supabaseClient = window.supabase.createClient(
   "https://lyyejixcijtidovuteff.supabase.co",
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx5eWVqaXhjaWp0aWRvdnV0ZWZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzExNDI5OTAsImV4cCI6MjA4NjcxODk5MH0.U1YcPK7FGTnv-1eaDo5eqvw0wq4cnG_69y0KqQJURjQ"
 );
 
+// ===== CLIENT HASH =====
 let clientHash = localStorage.getItem("client_hash");
 if(!clientHash){
   clientHash = crypto.randomUUID();
@@ -103,45 +125,49 @@ if(!clientHash){
 }
 
 let attemptsLeft = 3;
-let startTime = 0;
 let gameActive = false;
+let startTime = 0;
 
+// ===== LOAD ATTEMPTS FROM DB =====
 async function loadAttempts(){
-  const today = new Date().toISOString().split('T')[0];
+  const today = new Date().toISOString().split("T")[0];
 
-  const { data } = await supabase
+  const { data } = await supabaseClient
     .from("daily_scores")
     .select("*")
     .eq("client_hash",clientHash)
-    .gte("created_at", today);
+    .gte("created_at",today);
 
   attemptsLeft = 3 - (data?.length || 0);
   if(attemptsLeft < 0) attemptsLeft = 0;
 
   document.getElementById("attemptInfo").innerHTML =
-    "You have 3 attempts today.<br>Attempts left: "+attemptsLeft+"/3";
+    "Attempts left today: <b>"+attemptsLeft+"/3</b>";
 
   if(attemptsLeft === 0){
     document.getElementById("actionBtn").disabled = true;
-    document.getElementById("screenText").innerText = "NO ATTEMPTS LEFT";
+    document.getElementById("screenText").innerText = "NO ATTEMPTS";
   }
 }
 
+// ===== START GAME =====
 function startGame(){
   if(attemptsLeft <= 0) return;
 
   gameActive = true;
   startTime = Date.now();
+
   document.getElementById("screenText").innerText = "WAIT...";
-  document.getElementById("actionBtn").innerText = "TAP NOW";
+  document.getElementById("actionBtn").innerText = "TAP";
 
   setTimeout(()=>{
     if(gameActive){
-      document.getElementById("screenText").innerText = "TAP!";
+      document.getElementById("screenText").innerText = "TAP NOW!";
     }
   },Math.random()*2000+1000);
 }
 
+// ===== TAP =====
 async function tapNow(){
   if(!gameActive) return;
 
@@ -152,16 +178,16 @@ async function tapNow(){
   document.getElementById("actionBtn").innerText = "START GAME";
   document.getElementById("shareBtn").style.display="inline-block";
 
-  document.getElementById("eliminateSound").play();
+  document.getElementById("sound").play();
 
-  await supabase.from("scores").insert({
+  await supabaseClient.from("scores").insert({
     nickname:"Anonymous",
     reaction:reaction,
     season_id:1,
     client_hash:clientHash
   });
 
-  await supabase.from("daily_scores").insert({
+  await supabaseClient.from("daily_scores").insert({
     nickname:"Anonymous",
     reaction:reaction,
     season_id:1,
@@ -170,26 +196,29 @@ async function tapNow(){
 
   attemptsLeft--;
   loadAttempts();
+  loadLeaderboard();
+  loadEliminated();
+  loadChart();
 }
 
+// ===== BUTTON =====
 document.getElementById("actionBtn").addEventListener("click",()=>{
-  if(!gameActive){
-    startGame();
-  } else {
-    tapNow();
-  }
+  if(!gameActive) startGame();
+  else tapNow();
 });
 
+// ===== LEADERBOARD =====
 async function loadLeaderboard(){
-  const { data } = await supabase
+  const { data } = await supabaseClient
     .from("scores")
     .select("*")
     .order("reaction",{ascending:true})
     .limit(10);
 
-  const lb = document.getElementById("lbList");
+  const lb = document.getElementById("leaderboard");
   lb.innerHTML="";
-  data.forEach((row,i)=>{
+
+  data?.forEach((row,i)=>{
     lb.innerHTML += `
       <div class="lb-item">
         <span>${i+1}. ${row.nickname}</span>
@@ -199,14 +228,16 @@ async function loadLeaderboard(){
   });
 }
 
-supabase.channel('scores-changes')
-  .on('postgres_changes',{event:'INSERT',schema:'public',table:'scores'},payload=>{
-    loadLeaderboard();
-  }).subscribe();
+// ===== REALTIME =====
+supabaseClient.channel('live')
+.on('postgres_changes',{event:'INSERT',schema:'public',table:'scores'},
+  ()=>loadLeaderboard()
+).subscribe();
 
-async function loadEliminatedCounter(){
-  const today = new Date().toISOString().split('T')[0];
-  const { data } = await supabase
+// ===== ELIMINATED TODAY =====
+async function loadEliminated(){
+  const today = new Date().toISOString().split("T")[0];
+  const { data } = await supabaseClient
     .from("daily_scores")
     .select("*")
     .gte("created_at",today);
@@ -215,31 +246,68 @@ async function loadEliminatedCounter(){
     "🩸 Eliminated Today: "+(data?.length || 0);
 }
 
+// ===== CHAMPION =====
 async function loadChampion(){
-  const { data } = await supabase
+  const { data } = await supabaseClient
     .from("season_champions")
     .select("*")
     .order("reaction",{ascending:true})
     .limit(1);
 
   if(data?.length){
-    document.getElementById("championBanner").style.display="block";
-    document.getElementById("championBanner").innerText =
-      "🏆 Current Champion: "+data[0].nickname+" ("+data[0].reaction+" ms)";
+    const banner = document.getElementById("championBanner");
+    banner.style.display="block";
+    banner.innerText =
+      "🏆 Champion: "+data[0].nickname+" ("+data[0].reaction+" ms)";
   }
 }
 
+// ===== CHART =====
+let chart;
+async function loadChart(){
+  const { data } = await supabaseClient
+    .from("scores")
+    .select("reaction")
+    .limit(20);
+
+  const reactions = data?.map(d=>d.reaction);
+
+  const ctx = document.getElementById("reactionChart").getContext("2d");
+
+  if(chart) chart.destroy();
+
+  chart = new Chart(ctx,{
+    type:"bar",
+    data:{
+      labels:reactions.map((_,i)=>i+1),
+      datasets:[{
+        label:"Reaction (ms)",
+        data:reactions,
+        backgroundColor:"#00ff99"
+      }]
+    },
+    options:{
+      plugins:{legend:{display:false}},
+      scales:{x:{display:false}}
+    }
+  });
+}
+
+// ===== SHARE =====
 document.getElementById("shareBtn").addEventListener("click",()=>{
   const text = "I survived HUMAN LIMIT 🔥";
   navigator.clipboard.writeText(text);
-  alert("Copied for story sharing!");
+  alert("Copied for story!");
 });
 
+// ===== INIT =====
 loadAttempts();
 loadLeaderboard();
-loadEliminatedCounter();
+loadEliminated();
 loadChampion();
+loadChart();
 
 </script>
+
 </body>
 </html>
