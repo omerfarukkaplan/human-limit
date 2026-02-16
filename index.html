@@ -1,153 +1,184 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-<meta charset="UTF-8">
-<title>Human Limit</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>HUMAN LIMIT</title>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
-body{
-  margin:0;
-  background:#0f0f0f;
-  font-family:Arial;
-  color:white;
-  text-align:center;
+body {
+    margin: 0;
+    font-family: 'Segoe UI', sans-serif;
+    background: radial-gradient(circle at top, #0f2027, #203a43, #2c5364);
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
 }
-
-.container{
-  width:420px;
-  margin:80px auto;
-  background:#1a1a1a;
-  padding:40px;
-  border-radius:14px;
-  box-shadow:0 0 40px rgba(0,255,200,0.15);
+.container {
+    background: rgba(255,255,255,0.05);
+    backdrop-filter: blur(20px);
+    padding: 40px;
+    border-radius: 20px;
+    width: 400px;
+    box-shadow: 0 0 40px rgba(0,255,200,0.3);
 }
-
-h1{
-  letter-spacing:4px;
+h1 {
+    text-align: center;
+    letter-spacing: 4px;
 }
-
-input{
-  width:90%;
-  padding:12px;
-  margin:10px 0;
-  background:#111;
-  border:1px solid #333;
-  color:white;
-  border-radius:6px;
+input {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border-radius: 10px;
+    border: none;
+    background: rgba(255,255,255,0.1);
+    color: white;
 }
-
-button{
-  width:95%;
-  padding:14px;
-  margin-top:15px;
-  background:#00ffc3;
-  border:none;
-  font-weight:bold;
-  cursor:pointer;
-  border-radius:6px;
+button {
+    width: 100%;
+    padding: 12px;
+    margin-top: 10px;
+    border-radius: 10px;
+    border: none;
+    background: linear-gradient(45deg,#00ffcc,#00ffaa);
+    font-weight: bold;
+    cursor: pointer;
 }
-
-.result{
-  margin-top:30px;
-  padding:20px;
-  background:#121212;
-  border-radius:10px;
+button:hover {
+    opacity: 0.9;
+}
+.profile-box {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 10px;
+    background: rgba(0,0,0,0.4);
+}
+.score-box {
+    margin-top: 20px;
+}
+.hidden {
+    display: none;
 }
 </style>
 </head>
+
 <body>
 
 <div class="container">
-<h1>HUMAN LIMIT</h1>
+    <h1>HUMAN LIMIT</h1>
 
-<input id="email" placeholder="Email">
-<input id="password" type="password" placeholder="Password">
+    <input type="email" id="email" placeholder="Email">
+    <input type="password" id="password" placeholder="Password">
 
-<button onclick="signup()">Sign Up</button>
-<button onclick="login()">Login</button>
+    <button onclick="signUp()">Sign Up</button>
+    <button onclick="login()">Login</button>
 
-<div id="analysis"></div>
+    <div class="score-box hidden" id="gameArea">
+        <button onclick="playGame()">Run Personality Test</button>
+    </div>
 
+    <div class="profile-box hidden" id="profileBox"></div>
 </div>
 
 <script>
 
-const supabaseClient = supabase.createClient(
-  "https://mzvrzlwyvdfibusjfltf.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16dnJ6bHd5dmRmaWJ1c2pmbHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDYxODksImV4cCI6MjA4Njc4MjE4OX0.Y6c_KVS79tU1TL3ToZj5mfsXo5_UpzFk8rXZicEDFDo"
+const supabase = window.supabase.createClient(
+    "https://mzvrzlwyvdfibusjfltf.supabase.co",
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16dnJ6bHd5dmRmaWJ1c2pmbHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDYxODksImV4cCI6MjA4Njc4MjE4OX0.Y6c_KVS79tU1TL3ToZj5mfsXo5_UpzFk8rXZicEDFDo"
 );
 
-async function signup(){
+let currentUser = null;
 
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+async function signUp() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
 
-  const { data, error } = await supabaseClient.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({
+        email,
+        password
+    });
 
-  if(error){
-    alert(error.message);
-    return;
-  }
+    if (error) {
+        alert(error.message);
+        return;
+    }
 
-  await supabaseClient.from("users").insert([
-    { id: data.user.id, email: email }
-  ]);
-
-  alert("Signup successful. Now login.");
+    alert("Signup successful. Now login.");
 }
 
-async function login(){
+async function login() {
+    const email = document.getElementById("email").value;
+    const password = document.getElementById("password").value;
 
-  const email = document.getElementById("email").value;
-  const password = document.getElementById("password").value;
+    const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+    });
 
-  const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+        alert(error.message);
+        return;
+    }
 
-  if(error){
-    alert(error.message);
-    return;
-  }
-
-  await runTest(data.user.id);
+    currentUser = data.user;
+    document.getElementById("gameArea").classList.remove("hidden");
+    loadProfile();
 }
 
-async function runTest(userId){
+async function playGame() {
 
-  await supabaseClient.from("test_results").insert([{
-    user_id: userId,
-    reaction_score: Math.floor(Math.random()*100),
-    memory_score: Math.floor(Math.random()*100),
-    risk_score: Math.floor(Math.random()*100),
-    focus_score: Math.floor(Math.random()*100)
-  }]);
+    if (!currentUser) return;
 
-  const { data, error } = await supabaseClient
-    .from("personality_profiles")
-    .select("*")
-    .eq("user_id", userId)
-    .order("created_at", { ascending:false })
-    .limit(1);
+    const reaction = Math.floor(Math.random() * 100);
+    const memory = Math.floor(Math.random() * 100);
+    const risk = Math.floor(Math.random() * 100);
+    const focus = Math.floor(Math.random() * 100);
 
-  if(error || !data || data.length === 0){
-    document.getElementById("analysis").innerHTML =
-      "<div class='result'>Profile not generated.</div>";
-    return;
-  }
+    const { error } = await supabase
+        .from("test_results")
+        .insert([{
+            user_id: currentUser.id,
+            reaction_score: reaction,
+            memory_score: memory,
+            risk_score: risk,
+            focus_score: focus
+        }]);
 
-  const profile = data[0];
+    if (error) {
+        alert(error.message);
+        return;
+    }
 
-  document.getElementById("analysis").innerHTML =
-  `<div class="result">
-      <h2>${profile.profile_type}</h2>
-      <p>IQ: ${profile.iq_score}</p>
-      <p>Dominance: ${profile.dominance_score}</p>
-      <p>Emotional: ${profile.emotional_score}</p>
-      <p>${profile.summary}</p>
-   </div>`;
+    setTimeout(loadProfile, 1000);
+}
+
+async function loadProfile() {
+
+    if (!currentUser) return;
+
+    const { data, error } = await supabase
+        .from("personality_profiles")
+        .select("*")
+        .eq("user_id", currentUser.id)
+        .single();
+
+    if (error) return;
+
+    document.getElementById("profileBox").classList.remove("hidden");
+    document.getElementById("profileBox").innerHTML = `
+        <h3>${data.profile_type}</h3>
+        <p>${data.summary}</p>
+        <p>Emotional: ${data.emotional_score}</p>
+        <p>IQ: ${data.iq_score}</p>
+        <p>Dominance: ${data.dominance_score}</p>
+    `;
 }
 
 </script>
-
 </body>
 </html>
