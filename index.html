@@ -15,11 +15,11 @@ body{
   color:white;
   text-align:center;
 }
-.container{max-width:1100px;margin:auto;padding:20px;}
+.container{max-width:1200px;margin:auto;padding:20px;}
 .card{
   background:#111827;
   padding:25px;
-  border-radius:15px;
+  border-radius:16px;
   margin-bottom:20px;
   box-shadow:0 0 40px rgba(0,255,255,0.08);
 }
@@ -35,14 +35,16 @@ button{
 .hidden{display:none;}
 .grid{
   display:grid;
-  grid-template-columns:repeat(4,70px);
+  grid-template-columns:repeat(4,80px);
   gap:10px;
   justify-content:center;
 }
 .cell{
-  width:70px;height:70px;background:#1f2937;
+  width:80px;height:80px;background:#1f2937;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;cursor:pointer;
 }
-#gameArea{min-height:260px;}
+canvas{margin-top:20px;}
 </style>
 </head>
 
@@ -60,14 +62,6 @@ button{
 
 <div class="card hidden" id="dashboard">
 
-<h2>Profile</h2>
-<div id="profileBox"></div>
-<button id="aiBtn">Generate AI Analysis</button>
-<button id="shareBtn">Download Profile Card</button>
-
-<h2>Referral</h2>
-<div id="referralBox"></div>
-
 <h2>Games</h2>
 <div id="gameButtons"></div>
 <div id="gameArea"></div>
@@ -83,19 +77,22 @@ button{
 </div>
 
 <script>
-// ================== CONFIG ==================
-if (!window._supabaseClient) {
-  window._supabaseClient = window.supabase.createClient(
+
+// ================= SAFE SUPABASE =================
+let supabase;
+if (!window.__SUPABASE__) {
+  window.__SUPABASE__ = window.supabase.createClient(
     "https://mzvrzlwyvdfibusjfltf.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16dnJ6bHd5dmRmaWJ1c2pmbHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDYxODksImV4cCI6MjA4Njc4MjE4OX0.Y6c_KVS79tU1TL3ToZj5mfsXo5_UpzFk8rXZicEDFDo"
   );
 }
-const supabase = window._supabaseClient;
+supabase = window.__SUPABASE__;
 
+// ================= PADDLE =================
 Paddle.Environment.set("sandbox");
 Paddle.Initialize({token:"test_9d9daacf23a3e1f3ee848f1b8f0"});
 
-// ================== AUTH ==================
+// ================= AUTH =================
 const emailInput=document.getElementById("emailInput");
 const passwordInput=document.getElementById("passwordInput");
 
@@ -115,73 +112,14 @@ document.getElementById("loginBtn").onclick=async()=>{
   if(!error) initApp();
 };
 
-// ================== INIT ==================
 async function initApp(){
   document.getElementById("authCard").classList.add("hidden");
   document.getElementById("dashboard").classList.remove("hidden");
-  loadProfile();
-  loadLeaderboard();
   renderGames();
+  loadLeaderboard();
 }
 
-// ================== PROFILE ==================
-async function loadProfile(){
-  const {data:user}=await supabase.auth.getUser();
-
-  const {data}=await supabase
-    .from("users")
-    .select("global_rank,percentile,badge,referral_code")
-    .eq("id",user.user.id)
-    .single();
-
-  document.getElementById("profileBox").innerHTML=
-  `Rank: ${data.global_rank || "-"} |
-   Top ${data.percentile || "-"}% |
-   Badge: ${data.badge || "Rookie"}`;
-
-  document.getElementById("referralBox").innerHTML=
-  `Your Code: ${data.referral_code}`;
-}
-
-// ================== AI ==================
-document.getElementById("aiBtn").onclick=async()=>{
-  const {data:user}=await supabase.auth.getUser();
-  await fetch("https://mzvrzlwyvdfibusjfltf.supabase.co/functions/v1/generate-ai",{
-    method:"POST",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify({user_id:user.user.id})
-  });
-  alert("AI Generated");
-};
-
-// ================== SHARE CARD ==================
-document.getElementById("shareBtn").onclick=async()=>{
-  const canvas=document.createElement("canvas");
-  canvas.width=400;canvas.height=200;
-  const ctx=canvas.getContext("2d");
-  ctx.fillStyle="#0f172a";
-  ctx.fillRect(0,0,400,200);
-  ctx.fillStyle="#22d3ee";
-  ctx.font="20px Arial";
-  ctx.fillText("HUMAN LIMIT PROFILE",70,40);
-
-  const {data:user}=await supabase.auth.getUser();
-  const {data}=await supabase
-    .from("users")
-    .select("badge,percentile")
-    .eq("id",user.user.id)
-    .single();
-
-  ctx.fillText("Badge: "+data.badge,100,100);
-  ctx.fillText("Top "+data.percentile+"%",100,130);
-
-  const link=document.createElement("a");
-  link.download="profile.png";
-  link.href=canvas.toDataURL();
-  link.click();
-};
-
-// ================== SAVE SCORE ==================
+// ================= SAVE SCORE =================
 async function saveScore(type,score){
   const {data:user}=await supabase.auth.getUser();
   await supabase.from("game_sessions").insert({
@@ -192,56 +130,96 @@ async function saveScore(type,score){
   });
 }
 
-// ================== RATE LIMIT ==================
-let lastGameTime=0;
-function rateLimit(){
-  if(Date.now()-lastGameTime<1000){
-    alert("Slow down.");
-    return false;
-  }
-  lastGameTime=Date.now();
-  return true;
-}
-
-// ================== 20 GAMES ==================
+// ================= GAMES =================
 const games={};
 
-function renderGames(){
-  const container=document.getElementById("gameButtons");
-  container.innerHTML="";
-  Object.keys(games).forEach(k=>{
-    const b=document.createElement("button");
-    b.innerText=k;
-    b.onclick=()=>{ if(rateLimit()) games[k].start(); };
-    container.appendChild(b);
-  });
-}
-
 // 1 Reaction
-games["Pro Reaction"]={
+games["Reaction Test"]={
 start:function(){
   const area=document.getElementById("gameArea");
-  area.innerHTML="<canvas id='c' width='400' height='200'></canvas>";
-  const c=document.getElementById("c");
-  const ctx=c.getContext("2d");
-  let clickable=false,start;
-  ctx.fillStyle="red";ctx.fillRect(0,0,400,200);
+  area.innerHTML="<div id='box' style='width:300px;height:150px;background:red;margin:auto;display:flex;align-items:center;justify-content:center;'>Wait</div>";
+  const box=document.getElementById("box");
+  let start;
   setTimeout(()=>{
-    ctx.fillStyle="green";ctx.fillRect(0,0,400,200);
-    start=performance.now();clickable=true;
+    box.style.background="green";
+    box.innerText="CLICK!";
+    start=performance.now();
   },Math.random()*2000+1000);
 
-  c.onclick=()=>{
-    if(!clickable)return;
-    const r=performance.now()-start;
-    if(r<120){alert("Invalid");return;}
-    saveScore("reaction",Math.floor(r));
-    alert("Reaction: "+Math.floor(r));
+  box.onclick=()=>{
+    const reaction=Math.floor(performance.now()-start);
+    saveScore("reaction",reaction);
+    alert("Reaction: "+reaction+"ms");
   };
 }};
 
-// 2 Memory Grid
-games["Memory Grid"]={
+// 2 Memory Numbers
+games["Memory Numbers"]={
+start:function(){
+  const area=document.getElementById("gameArea");
+  const num=Math.floor(Math.random()*9000+1000);
+  area.innerHTML=`<h3>Memorize: ${num}</h3>`;
+  setTimeout(()=>{
+    area.innerHTML="<input id='ans'><button id='check'>Check</button>";
+    document.getElementById("check").onclick=()=>{
+      const val=document.getElementById("ans").value;
+      const score=val==num?100:0;
+      saveScore("memory",score);
+      alert("Score: "+score);
+    };
+  },2000);
+}};
+
+// 3 Click Speed
+games["Click Speed"]={
+start:function(){
+  const area=document.getElementById("gameArea");
+  area.innerHTML="<button id='clicker'>Click Fast</button><p id='count'>0</p>";
+  let count=0;
+  const btn=document.getElementById("clicker");
+  btn.onclick=()=>count++;
+  setTimeout(()=>{
+    saveScore("speed",count);
+    alert("Clicks: "+count);
+  },5000);
+}};
+
+// 4 Math Blitz
+games["Math Blitz"]={
+start:function(){
+  const a=Math.floor(Math.random()*10);
+  const b=Math.floor(Math.random()*10);
+  const area=document.getElementById("gameArea");
+  area.innerHTML=`<h3>${a}+${b}</h3><input id='ans'><button id='ok'>OK</button>`;
+  document.getElementById("ok").onclick=()=>{
+    const score=document.getElementById("ans").value==(a+b)?100:0;
+    saveScore("math",score);
+    alert("Score:"+score);
+  };
+}};
+
+// 5 Color Reflex
+games["Color Reflex"]={
+start:function(){
+  const area=document.getElementById("gameArea");
+  const colors=["red","blue","green","yellow"];
+  const c=colors[Math.floor(Math.random()*4)];
+  area.innerHTML=`<h3>Click ${c}</h3>`;
+  colors.forEach(col=>{
+    const b=document.createElement("button");
+    b.style.background=col;
+    b.innerText=col;
+    b.onclick=()=>{
+      const score=col===c?100:0;
+      saveScore("color",score);
+      alert("Score:"+score);
+    };
+    area.appendChild(b);
+  });
+}};
+
+// 6 Pattern Match
+games["Pattern Match"]={
 start:function(){
   const area=document.getElementById("gameArea");
   area.innerHTML="<div class='grid' id='grid'></div>";
@@ -253,7 +231,7 @@ start:function(){
     grid.appendChild(cell);
   }
   const cells=document.querySelectorAll(".cell");
-  for(let i=0;i<4;i++){
+  for(let i=0;i<3;i++){
     let r=Math.floor(Math.random()*16);
     active.push(r);
     cells[r].style.background="#22d3ee";
@@ -262,29 +240,49 @@ start:function(){
   let score=0;
   cells.forEach((c,i)=>{
     c.onclick=()=>{
-      if(active.includes(i)){score++;c.style.background="#22d3ee";}
-      if(score===4){saveScore("memory",score*25);alert("Success");}
+      if(active.includes(i))score++;
+      if(score===3){
+        saveScore("pattern",100);
+        alert("Success");
+      }
     };
   });
 }};
 
-// 3–20 simplified scalable
-for(let i=3;i<=20;i++){
-  games["Game "+i]={
+// 7–10 Logic Mini
+for(let i=7;i<=10;i++){
+  games["Logic "+i]={
     start:function(){
       const area=document.getElementById("gameArea");
       const n=Math.floor(Math.random()*100);
-      area.innerHTML=`<h3>Click if >50</h3><button id="g">${n}</button>`;
-      document.getElementById("g").onclick=()=>{
-        const score=n>50?100:0;
+      area.innerHTML=`<h3>Is ${n} even?</h3>
+      <button id='yes'>Yes</button>
+      <button id='no'>No</button>`;
+      document.getElementById("yes").onclick=()=>check(true);
+      document.getElementById("no").onclick=()=>check(false);
+      function check(ans){
+        const correct=(n%2===0);
+        const score=(ans===correct)?100:0;
         saveScore("logic",score);
-        alert("Score: "+score);
-      };
+        alert("Score:"+score);
+      }
     }
   };
 }
 
-// ================== LEADERBOARD ==================
+// ================= RENDER =================
+function renderGames(){
+  const container=document.getElementById("gameButtons");
+  container.innerHTML="";
+  Object.keys(games).forEach(k=>{
+    const b=document.createElement("button");
+    b.innerText=k;
+    b.onclick=()=>games[k].start();
+    container.appendChild(b);
+  });
+}
+
+// ================= LEADERBOARD =================
 async function loadLeaderboard(){
   const {data}=await supabase
     .from("leaderboard")
@@ -293,15 +291,18 @@ async function loadLeaderboard(){
     .limit(10);
   const div=document.getElementById("leaderboard");
   div.innerHTML="";
-  data.forEach(d=>div.innerHTML+=`<p>${d.iq_score}</p>`);
+  if(data) data.forEach(d=>{
+    div.innerHTML+=`<p>${d.iq_score}</p>`;
+  });
 }
 
-// ================== PREMIUM ==================
+// ================= PREMIUM =================
 document.getElementById("premiumBtn").onclick=()=>{
   Paddle.Checkout.open({
     items:[{priceId:"pri_01khjtmydh0vjrmgc934n95339",quantity:1}]
   });
 };
+
 </script>
 
 </body>
