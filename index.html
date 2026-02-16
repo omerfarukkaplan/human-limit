@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <title>HUMAN LIMIT</title>
 
+<link rel="icon" type="image/svg+xml" href='data:image/svg+xml,
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+<rect width="100" height="100" fill="black"/>
+<text x="50" y="65" font-size="60" fill="cyan" text-anchor="middle">H</text>
+</svg>'>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
 
@@ -85,8 +91,8 @@ button.locked{
 </div>
 
 <script>
-// ===== SAFE INIT (NO REDECLARE ERROR) =====
-if(!window.sb){
+// ===== SAFE SUPABASE INIT =====
+if (!window.sb) {
   window.sb = window.supabase.createClient(
     "https://mzvrzlwyvdfibusjfltf.supabase.co",
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16dnJ6bHd5dmRmaWJ1c2pmbHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDYxODksImV4cCI6MjA4Njc4MjE4OX0.Y6c_KVS79tU1TL3ToZj5mfsXo5_UpzFk8rXZicEDFDo"
