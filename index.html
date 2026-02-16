@@ -3,144 +3,62 @@
 <head>
 <meta charset="UTF-8">
 <title>Human Limit</title>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
 <style>
-body {
-  margin:0;
-  background:#0f0f0f;
-  font-family:Arial;
-  color:white;
-  text-align:center;
-}
-
-h1 {
-  margin-top:80px;
-  font-size:48px;
-  letter-spacing:4px;
-}
-
-input {
-  padding:12px;
-  width:300px;
-  background:#1c1c1c;
-  border:1px solid #333;
-  color:white;
-  margin-top:20px;
-}
-
-button {
-  padding:12px 30px;
-  margin-top:20px;
-  background:#00ffcc;
-  border:none;
-  cursor:pointer;
-  font-weight:bold;
-  transition:0.3s;
-}
-
-button:hover {
-  background:#00ccaa;
-}
-
-#gameArea {
-  margin-top:60px;
-}
+body{background:#0e0e0e;color:white;font-family:Arial;text-align:center}
+.card{background:#1a1a1a;padding:40px;width:400px;margin:40px auto;border-radius:12px}
+input{padding:10px;width:80%;background:#222;border:none;color:white;margin-top:10px}
+button{margin-top:20px;padding:12px 30px;background:#00ffc3;border:none;font-weight:bold;cursor:pointer}
 </style>
 </head>
-
 <body>
 
 <h1>HUMAN LIMIT</h1>
 
-<input id="email" placeholder="Enter your email" />
-<br>
-<button id="startBtn">Start</button>
+<div class="card">
+<input id="email" placeholder="Email"><br>
+<input id="password" type="password" placeholder="Password"><br>
+<button id="enterBtn">Enter</button>
+</div>
 
-<div id="gameArea"></div>
+<div id="analysis"></div>
 
 <script>
+const { createClient } = supabase;
+const client = createClient("https://mzvrzlwyvdfibusjfltf.supabase.co","eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16dnJ6bHd5dmRmaWJ1c2pmbHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDYxODksImV4cCI6MjA4Njc4MjE4OX0.Y6c_KVS79tU1TL3ToZj5mfsXo5_UpzFk8rXZicEDFDo");
 
-// SUPABASE CONFIG
-const supabaseUrl = "BURAYA_SUPABASE_URL";
-const supabaseKey = "BURAYA_PUBLIC_ANON_KEY";
-
-const supabase = supabase.createClient(supabaseUrl, supabaseKey);
-
-document.getElementById("startBtn").addEventListener("click", async () => {
+document.getElementById("enterBtn").addEventListener("click", async ()=>{
 
   const email = document.getElementById("email").value;
+  const password = document.getElementById("password").value;
 
-  if(!email) return alert("Email required");
+  const { data, error } = await client.auth.signUp({ email, password });
+  if(error){ alert(error.message); return; }
 
-  // Kullanıcı kaydet
-  await supabase.from("users").insert([{ email: email }]);
+  await client.from("users").insert([{ id: data.user.id, email }]);
 
-  loadMiniGame();
+  await client.from("test_results").insert([{
+    user_id: data.user.id,
+    reaction_score: Math.floor(Math.random()*100),
+    memory_score: Math.floor(Math.random()*100),
+    risk_score: Math.floor(Math.random()*100),
+    focus_score: Math.floor(Math.random()*100)
+  }]);
+
+  const { data: profile } = await client
+    .from("personality_profiles")
+    .select("*")
+    .order("created_at",{ascending:false})
+    .limit(1);
+
+  document.getElementById("analysis").innerHTML =
+    "<div class='card'><h2>"+profile[0].profile_type+"</h2>"+
+    "<p>IQ: "+profile[0].iq_score+"</p>"+
+    "<p>Dominance: "+profile[0].dominance_score+"</p>"+
+    "<p>Emotional: "+profile[0].emotional_score+"</p>"+
+    "<p>"+profile[0].summary+"</p></div>";
+
 });
-
-function loadMiniGame() {
-  const gameArea = document.getElementById("gameArea");
-
-  const randomGame = Math.floor(Math.random()*3);
-
-  if(randomGame === 0) reactionGame();
-  if(randomGame === 1) memoryGame();
-  if(randomGame === 2) clickSpeedGame();
-}
-
-// MINI GAME 1 – Reaction
-function reactionGame() {
-  const gameArea = document.getElementById("gameArea");
-  gameArea.innerHTML = "<h2>Click when screen turns green</h2>";
-
-  setTimeout(()=>{
-    document.body.style.background = "green";
-
-    const start = Date.now();
-
-    document.body.onclick = ()=>{
-      const reaction = Date.now() - start;
-      alert("Reaction: "+reaction+"ms");
-      document.body.style.background = "#0f0f0f";
-      document.body.onclick = null;
-    };
-
-  }, Math.random()*3000+1000);
-}
-
-// MINI GAME 2 – Memory
-function memoryGame() {
-  const number = Math.floor(Math.random()*9000+1000);
-  const gameArea = document.getElementById("gameArea");
-
-  gameArea.innerHTML = "<h2>Remember this: "+number+"</h2>";
-
-  setTimeout(()=>{
-    gameArea.innerHTML = "<input id='memInput' placeholder='Type number'><br><button onclick='checkMemory("+number+")'>Submit</button>";
-  },3000);
-}
-
-function checkMemory(num){
-  const val = document.getElementById("memInput").value;
-  alert(val == num ? "Correct" : "Wrong");
-}
-
-// MINI GAME 3 – Click Speed
-function clickSpeedGame(){
-  const gameArea = document.getElementById("gameArea");
-  let clicks = 0;
-
-  gameArea.innerHTML = "<h2>Click as fast as you can (5 seconds)</h2><button id='clickBtn'>Click</button>";
-
-  document.getElementById("clickBtn").onclick = ()=> clicks++;
-
-  setTimeout(()=>{
-    alert("Total clicks: "+clicks);
-  },5000);
-}
-
 </script>
 
 </body>
