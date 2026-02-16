@@ -87,7 +87,7 @@ button{
 <script>
 const supabaseUrl = "https://mzvrzlwyvdfibusjfltf.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16dnJ6bHd5dmRmaWJ1c2pmbHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDYxODksImV4cCI6MjA4Njc4MjE4OX0.Y6c_KVS79tU1TL3ToZj5mfsXo5_UpzFk8rXZicEDFDo";
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+const sb = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // AUTH
 const signupBtn = document.getElementById("signupBtn");
@@ -97,7 +97,7 @@ signupBtn.addEventListener("click", async ()=>{
   const email = emailInput.value;
   const password = passwordInput.value;
 
-  const { error } = await supabase.auth.signUp({email,password});
+  const { error } = await sb.auth.signUp({email,password});
   if(error) alert(error.message);
   else alert("Signup success");
 });
@@ -106,7 +106,7 @@ loginBtn.addEventListener("click", async ()=>{
   const email = emailInput.value;
   const password = passwordInput.value;
 
-  const { error } = await supabase.auth.signInWithPassword({email,password});
+  const { error } = await sb.auth.signInWithPassword({email,password});
   if(error) alert(error.message);
   else loadApp();
 });
@@ -136,8 +136,8 @@ reactionBox.addEventListener("click", async ()=>{
     const reaction = Date.now()-startTime;
     alert("Reaction: "+reaction+" ms");
 
-    const { data: userData } = await supabase.auth.getUser();
-    await supabase.from("test_results").insert({
+    const { data: userData } = await sb.auth.getUser();
+    await sb.from("test_results").insert({
       user_id:userData.user.id,
       reaction_score:reaction,
       memory_score:0,
