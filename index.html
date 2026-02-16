@@ -1,88 +1,74 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8">
 <title>HUMAN LIMIT</title>
-
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body {
-    margin: 0;
-    font-family: 'Segoe UI', sans-serif;
-    background: radial-gradient(circle at top, #0f2027, #203a43, #2c5364);
-    color: white;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
+    margin:0;
+    font-family:Arial;
+    background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+    color:white;
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    height:100vh;
 }
-.container {
-    background: rgba(255,255,255,0.05);
-    backdrop-filter: blur(20px);
-    padding: 40px;
-    border-radius: 20px;
-    width: 400px;
-    box-shadow: 0 0 40px rgba(0,255,200,0.3);
+.card{
+    width:500px;
+    padding:30px;
+    background:rgba(255,255,255,0.05);
+    backdrop-filter:blur(20px);
+    border-radius:20px;
 }
-h1 {
-    text-align: center;
-    letter-spacing: 4px;
+input,button{
+    width:100%;
+    padding:10px;
+    margin-top:10px;
+    border-radius:10px;
+    border:none;
 }
-input {
-    width: 100%;
-    padding: 12px;
-    margin: 10px 0;
-    border-radius: 10px;
-    border: none;
-    background: rgba(255,255,255,0.1);
-    color: white;
+button{
+    background:#00ffcc;
+    font-weight:bold;
 }
-button {
-    width: 100%;
-    padding: 12px;
-    margin-top: 10px;
-    border-radius: 10px;
-    border: none;
-    background: linear-gradient(45deg,#00ffcc,#00ffaa);
-    font-weight: bold;
-    cursor: pointer;
-}
-button:hover {
-    opacity: 0.9;
-}
-.profile-box {
-    margin-top: 20px;
-    padding: 15px;
-    border-radius: 10px;
-    background: rgba(0,0,0,0.4);
-}
-.score-box {
-    margin-top: 20px;
-}
-.hidden {
-    display: none;
-}
+.hidden{display:none;}
+canvas{margin-top:20px;}
 </style>
 </head>
 
 <body>
+<div class="card">
 
-<div class="container">
-    <h1>HUMAN LIMIT</h1>
+<h2>HUMAN LIMIT</h2>
 
-    <input type="email" id="email" placeholder="Email">
-    <input type="password" id="password" placeholder="Password">
+<div id="auth">
+<input id="email" placeholder="Email">
+<input id="password" type="password" placeholder="Password">
+<button onclick="signUp()">Sign Up</button>
+<button onclick="login()">Login</button>
+</div>
 
-    <button onclick="signUp()">Sign Up</button>
-    <button onclick="login()">Login</button>
+<div id="games" class="hidden">
+<h3>Mini Games</h3>
+<button onclick="reactionGame()">Reaction Game</button>
+<button onclick="memoryGame()">Memory Game</button>
+<button onclick="focusGame()">Focus Game</button>
+<button onclick="submitScores()">Submit Test</button>
+</div>
 
-    <div class="score-box hidden" id="gameArea">
-        <button onclick="playGame()">Run Personality Test</button>
-    </div>
+<div id="dashboard" class="hidden">
+<h3>Personality Profile</h3>
+<div id="profile"></div>
+<canvas id="chart"></canvas>
+<button onclick="downloadCard()">Download Personality Card</button>
+<button onclick="upgrade()">Go Premium</button>
+</div>
 
-    <div class="profile-box hidden" id="profileBox"></div>
 </div>
 
 <script>
@@ -92,91 +78,107 @@ const supabase = window.supabase.createClient(
     "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16dnJ6bHd5dmRmaWJ1c2pmbHRmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEyMDYxODksImV4cCI6MjA4Njc4MjE4OX0.Y6c_KVS79tU1TL3ToZj5mfsXo5_UpzFk8rXZicEDFDo"
 );
 
-let currentUser = null;
+Paddle.Environment.set("sandbox");
+Paddle.Initialize({ token: "test_9d9daacf23a3e1f3ee848f1b8f0" });
 
-async function signUp() {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
+let user=null;
+let scores={
+    reaction:0,
+    memory:0,
+    focus:0
+};
 
-    const { data, error } = await supabase.auth.signUp({
-        email,
-        password
+async function signUp(){
+    const { error } = await supabase.auth.signUp({
+        email:email.value,
+        password:password.value
     });
-
-    if (error) {
-        alert(error.message);
-        return;
-    }
-
-    alert("Signup successful. Now login.");
+    if(error) alert(error.message);
 }
 
-async function login() {
-    const email = document.getElementById("email").value;
-    const password = document.getElementById("password").value;
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
+async function login(){
+    const { data,error } = await supabase.auth.signInWithPassword({
+        email:email.value,
+        password:password.value
     });
-
-    if (error) {
-        alert(error.message);
-        return;
-    }
-
-    currentUser = data.user;
-    document.getElementById("gameArea").classList.remove("hidden");
-    loadProfile();
+    if(error) return alert(error.message);
+    user=data.user;
+    auth.classList.add("hidden");
+    games.classList.remove("hidden");
 }
 
-async function playGame() {
-
-    if (!currentUser) return;
-
-    const reaction = Math.floor(Math.random() * 100);
-    const memory = Math.floor(Math.random() * 100);
-    const risk = Math.floor(Math.random() * 100);
-    const focus = Math.floor(Math.random() * 100);
-
-    const { error } = await supabase
-        .from("test_results")
-        .insert([{
-            user_id: currentUser.id,
-            reaction_score: reaction,
-            memory_score: memory,
-            risk_score: risk,
-            focus_score: focus
-        }]);
-
-    if (error) {
-        alert(error.message);
-        return;
-    }
-
-    setTimeout(loadProfile, 1000);
+function reactionGame(){
+    const start=Date.now();
+    setTimeout(()=>{
+        scores.reaction=100-(Date.now()-start)/10;
+        alert("Reaction Score: "+scores.reaction);
+    },1000);
 }
 
-async function loadProfile() {
+function memoryGame(){
+    const number=Math.floor(Math.random()*1000);
+    alert("Memorize: "+number);
+    setTimeout(()=>{
+        const answer=prompt("Enter number:");
+        scores.memory = (answer==number)?100:50;
+        alert("Memory Score: "+scores.memory);
+    },2000);
+}
 
-    if (!currentUser) return;
+function focusGame(){
+    scores.focus=Math.floor(Math.random()*100);
+    alert("Focus Score: "+scores.focus);
+}
 
-    const { data, error } = await supabase
-        .from("personality_profiles")
-        .select("*")
-        .eq("user_id", currentUser.id)
-        .single();
+async function submitScores(){
+    await supabase.from("test_results").insert([{
+        user_id:user.id,
+        reaction_score:scores.reaction,
+        memory_score:scores.memory,
+        risk_score:Math.random()*100,
+        focus_score:scores.focus
+    }]);
+    setTimeout(loadProfile,1000);
+}
 
-    if (error) return;
+async function loadProfile(){
+    games.classList.add("hidden");
+    dashboard.classList.remove("hidden");
 
-    document.getElementById("profileBox").classList.remove("hidden");
-    document.getElementById("profileBox").innerHTML = `
-        <h3>${data.profile_type}</h3>
-        <p>${data.summary}</p>
-        <p>Emotional: ${data.emotional_score}</p>
-        <p>IQ: ${data.iq_score}</p>
-        <p>Dominance: ${data.dominance_score}</p>
+    const { data } = await supabase
+    .from("personality_profiles")
+    .select("*")
+    .eq("user_id",user.id)
+    .single();
+
+    profile.innerHTML=`
+    <b>${data.profile_type}</b><br>
+    ${data.summary}
     `;
+
+    new Chart(document.getElementById("chart"),{
+        type:"radar",
+        data:{
+            labels:["Emotional","IQ","Dominance"],
+            datasets:[{
+                data:[
+                    data.emotional_score,
+                    data.iq_score,
+                    data.dominance_score
+                ]
+            }]
+        }
+    });
+}
+
+function downloadCard(){
+    alert("Card feature ready for viral sharing.");
+}
+
+function upgrade(){
+    Paddle.Checkout.open({
+        items:[{priceId:"pri_01khjtmydh0vjrmgc934n95339",quantity:1}]
+    });
 }
 
 </script>
